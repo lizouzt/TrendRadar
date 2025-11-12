@@ -1654,8 +1654,8 @@ def render_html_content(
             }
             
             .header {
-                background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-                color: white;
+                background: linear-gradient(135deg, #7a72ff 0%, #3aafed 100%);
+                color: #fff;
                 padding: 32px 24px;
                 text-align: center;
                 position: relative;
@@ -3736,7 +3736,7 @@ def send_to_email(
         msg = MIMEMultipart("alternative")
 
         # 严格按照 RFC 标准设置 From header
-        sender_name = "搞钱"
+        sender_name = "HotTrends"
         msg["From"] = formataddr((sender_name, from_email))
 
         # 设置收件人
