@@ -9,11 +9,10 @@ AMD
 
 谷歌
 google
+
 gemini
 deepmind
-
-claude
-Anthropic
+openai
 
 ai
 !gai
@@ -21,8 +20,7 @@ ai
 
 自动驾驶
 
-国产
-中国
+国产替代
 
 芯片
 光刻机
