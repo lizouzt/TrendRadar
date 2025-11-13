@@ -5,9 +5,12 @@ TrendRadar MCP Server - FastMCP 2.0 实现
 支持 stdio 和 HTTP 两种传输模式。
 """
 
+import os
 import json
 from typing import List, Optional, Dict
 
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 from fastmcp import FastMCP
 
 from .tools.data_query import DataQueryTools
@@ -19,6 +22,51 @@ from .tools.system import SystemManagementTools
 
 # 创建 FastMCP 2.0 应用
 mcp = FastMCP('trendradar-news')
+
+# 从环境变量读取预设的密码
+# 这个密码由 start-http.bat 或 start-http.sh 脚本设置
+SERVER_PASSWORD = os.getenv("MCP_SERVER_PASSWORD")
+
+
+async def authentication_middleware(request: Request, call_next):
+    """
+    密码认证中间件 - 验证HTTP请求中的密码
+    
+    仅在HTTP模式下生效。当MCP_SERVER_PASSWORD环境变量被设置时，
+    所有请求都必须在URL查询参数中提供正确的密码，否则返回403错误。
+    
+    密码可以通过以下方式传递：
+    - URL查询参数：http://localhost:3333/mcp?pwd=<password>
+    - X-MCP-Password请求头：curl -H "X-MCP-Password: <password>" http://localhost:3333/mcp
+    """
+    # 仅当服务器设置了密码时才启用验证
+    if SERVER_PASSWORD:
+        # 优先尝试从请求头获取密码
+        password_from_header = request.headers.get("X-MCP-Password")
+        
+        # 其次从URL查询参数获取密码
+        password_from_query = request.query_params.get("pwd")
+        
+        # 获取客户端提供的密码（优先使用请求头）
+        client_password = password_from_header or password_from_query
+        
+        # 如果密码不正确或未提供，则返回 403 Forbidden 错误
+        if client_password != SERVER_PASSWORD:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "error": "Forbidden",
+                    "message": "Invalid or missing password. Please provide 'pwd' query parameter or 'X-MCP-Password' header."
+                },
+            )
+    
+    # 如果密码正确或服务器未设置密码，则继续处理请求
+    response = await call_next(request)
+    return response
+
+
+# 注册认证中间件
+mcp.add_middleware(authentication_middleware)
 
 # 全局工具实例（在第一次请求时初始化）
 _tools_instances = {}
@@ -593,6 +641,14 @@ def run_server(
         print(f"  监听地址: http://{host}:{port}")
         print(f"  HTTP端点: http://{host}:{port}/mcp")
         print("  协议: MCP over HTTP (生产环境)")
+        if SERVER_PASSWORD:
+            print(f"  🔐 认证状态: ✅ 启用")
+            print(f"  🔑 访问密码: 已设置 (长度: {len(SERVER_PASSWORD)} 字符)")
+            print(f"  📝 访问方式:")
+            print(f"     1. URL参数: http://{host}:{port}/mcp?pwd=<your_password>")
+            print(f"     2. 请求头: curl -H 'X-MCP-Password: <your_password>' http://{host}:{port}/mcp")
+        else:
+            print(f"  🔓 认证状态: ❌ 关闭 (未设置MCP_SERVER_PASSWORD环境变量)")
 
     if project_root:
         print(f"  项目目录: {project_root}")
