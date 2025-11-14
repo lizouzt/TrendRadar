@@ -9,9 +9,10 @@ import os
 import json
 from typing import List, Optional, Dict
 
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context
+from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import get_http_headers
+from fastmcp.server.middleware import Middleware, MiddlewareContext
 
 from .tools.data_query import DataQueryTools
 from .tools.analytics import AnalyticsTools
@@ -27,50 +28,27 @@ mcp = FastMCP('trendradar-news')
 # 这个密码由 start-http.bat 或 start-http.sh 脚本设置
 SERVER_PASSWORD = os.getenv("MCP_SERVER_PASSWORD")
 
+class UserAuthMiddleware(Middleware):
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        headers = get_http_headers()
+        header = headers.get("authorization")
+        if not header:
+            raise ToolError("Access denied: private tool")
 
-async def authentication_middleware(request: Request, call_next):
-    """
-    密码认证中间件 - 验证HTTP请求中的密码
-    
-    仅在HTTP模式下生效。当MCP_SERVER_PASSWORD环境变量被设置时，
-    所有请求都必须在URL查询参数中提供正确的密码，否则返回403错误。
-    
-    密码可以通过以下方式传递：
-    - URL查询参数：http://localhost:3333/mcp?pwd=<password>
-    - X-MCP-Password请求头：curl -H "X-MCP-Password: <password>" http://localhost:3333/mcp
-    """
-    # 仅当服务器设置了密码时才启用验证
-    if SERVER_PASSWORD:
-        # 优先尝试从请求头获取密码
-        password_from_header = request.headers.get("X-MCP-Password")
+        if not header.startswith("Bearer "):
+            raise ToolError("Access denied: invalid token format")
         
-        # 其次从URL查询参数获取密码
-        password_from_query = request.query_params.get("pwd")
-        
-        # 获取客户端提供的密码（优先使用请求头）
-        client_password = password_from_header or password_from_query
-        
-        # 如果密码不正确或未提供，则返回 403 Forbidden 错误
-        if client_password != SERVER_PASSWORD:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "error": "Forbidden",
-                    "message": "Invalid or missing password. Please provide 'pwd' query parameter or 'X-MCP-Password' header."
-                },
-            )
-    
-    # 如果密码正确或服务器未设置密码，则继续处理请求
-    response = await call_next(request)
-    return response
+        token = header.removeprefix("Bearer ").strip()
 
+        if token != SERVER_PASSWORD:
+            raise ToolError("Access denied: private tool")
 
-# 注册认证中间件
-mcp.add_middleware(authentication_middleware)
+        return await call_next(context)
+
+mcp.add_middleware(UserAuthMiddleware())
 
 # 全局工具实例（在第一次请求时初始化）
 _tools_instances = {}
-
 
 def _get_tools(project_root: Optional[str] = None):
     """获取或创建工具实例（单例模式）"""
