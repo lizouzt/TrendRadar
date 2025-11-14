@@ -2,3 +2,4 @@ mcp_server/**/__pycache__
 mcp_server/*/__pycache__
 __pycache__
 start-http-run.sh
+uv.lock
