@@ -11,9 +11,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from email.utils import formataddr, formatdate, make_msgid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Union
+from mcp_server.tools.data_query import DataQueryTools
+from mcp_server.tools.analytics import AnalyticsTools
 
 import pytz
 import requests
@@ -1604,8 +1606,10 @@ def generate_html_report(
     mode: str = "daily",
     is_daily_summary: bool = False,
     update_info: Optional[Dict] = None,
+    word_groups: Optional[List[Dict]] = None,
 ) -> str:
     """生成HTML报告"""
+    topic_trend_data = None
     if is_daily_summary:
         if mode == "current":
             filename = "当前榜单汇总.html"
@@ -1615,13 +1619,37 @@ def generate_html_report(
             filename = "当日汇总.html"
     else:
         filename = f"{format_time_filename()}.html"
+        # 如果不是生成每日汇总，则调用函数获取话题趋势
+        if word_groups:
+            # 提取关注词用于趋势分析
+            topics_to_analyze = [group["group_key"] for group in word_groups if group["group_key"] != "全部新闻"]
+            if topics_to_analyze:
+                try:
+                    print(f"正在为关注词获取话题趋势分析数据: {topics_to_analyze}")
+                    analytics_tool = AnalyticsTools()
+                    trends = []
+                    for topic in topics_to_analyze:
+                        # 调用正确的函数 analyze_topic_trend_unified
+                        result = analytics_tool.analyze_topic_trend_unified(topic=topic, analysis_type="trend")
+                        if result.get("success"):
+                            trends.append(result)
+                    
+                    topic_trend_data = {"trends": trends}
+                    print("话题趋势数据获取成功。")
+                except Exception as e:
+                    print(f"获取话题趋势分析数据失败: {e}")
 
     file_path = get_output_path("html", filename)
 
     report_data = prepare_report_data(stats, failed_ids, new_titles, id_to_name, mode)
 
     html_content = render_html_content(
-        report_data, total_titles, is_daily_summary, mode, update_info
+        report_data=report_data,
+        total_titles=total_titles,
+        is_daily_summary=is_daily_summary,
+        mode=mode,
+        update_info=update_info,
+        topic_trend_data=topic_trend_data,
     )
 
     with open(file_path, "w", encoding="utf-8") as f:
@@ -1636,11 +1664,12 @@ def generate_html_report(
 
 
 def render_html_content(
-    report_data: Dict,
-    total_titles: int,
+    report_data: Dict, 
+    total_titles: int, 
     is_daily_summary: bool = False,
-    mode: str = "daily",
+    mode: str = "daily", 
     update_info: Optional[Dict] = None,
+    topic_trend_data: Optional[Dict] = None,
 ) -> str:
     """渲染HTML内容"""
     html = """
@@ -1906,6 +1935,30 @@ def render_html_content(
             
             .news-link:visited {
                 color: #7c3aed;
+            }
+
+            .topic-trend-section {
+                margin-top: 40px;
+                padding-top: 24px;
+                border-top: 2px solid #f0f0f0;
+            }
+            
+            .topic-trend-title {
+                color: #1a1a1a;
+                font-size: 16px;
+                font-weight: 600;
+                margin: 0 0 20px 0;
+            }
+            
+            .topic-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 8px 0;
+                border-bottom: 1px solid #f9f9f9;
+            }
+            .topic-item:last-child {
+                border-bottom: none;
             }
             
             .new-section {
@@ -2245,6 +2298,49 @@ def render_html_content(
 
             html += """
                 </div>"""
+
+    # 渲染话题趋势模块
+    if topic_trend_data and topic_trend_data.get("trends"):
+        html += """
+                <div class="topic-trend-section">
+                    <div class="topic-trend-title">✨ 关注话题趋势</div>
+        """
+        for trend_result in topic_trend_data["trends"]:
+            topic = html_escape(trend_result.get("topic", "N/A"))
+            stats = trend_result.get("statistics", {})
+            total_mentions = stats.get("total_mentions", 0)
+            change_rate = stats.get("change_rate", 0)
+            
+            change_html = ""
+            if change_rate > 10: # 增长超过10%
+                change_html = f'<span style="color: #dc2626;">(↑{change_rate:.2f}%)</span>'
+            elif change_rate < -10: # 下降超过10%
+                change_html = f'<span style="color: #059669;">(↓{abs(change_rate):.2f}%)</span>'
+            else:
+                change_html = '<span style="color: #6b7280;">(稳定)</span>'
+
+            html += f"""
+                    <div class="word-group">
+                        <div class="word-header">
+                            <div class="word-info">
+                                <div class="word-name">{topic}</div>
+                                <div class="word-count">{total_mentions} 条提及 {change_html}</div>
+                            </div>
+                        </div>
+            """
+            
+            # 渲染趋势图 (简单实现，显示7日趋势数据)
+            trend_data = trend_result.get("trend_data", [])
+            if trend_data:
+                # 格式化为 "MM-DD: Count"
+                trend_line = " -> ".join([f"{datetime.strptime(d['date'], '%Y-%m-%d').strftime('%m-%d')}: {d['count']}" for d in trend_data])
+                html += f"""
+                        <div class="news-item">
+                            <div class="news-content" style="padding-right: 0;">7日趋势: {html_escape(trend_line)}</div>
+                        </div>
+                """
+            html += "</div>" # End of word-group
+        html += "</div>" # End of topic-trend-section
 
     # 处理新增新闻区域
     if report_data["new_titles"]:
@@ -4227,6 +4323,7 @@ class NewsAnalyzer:
             mode=mode,
             is_daily_summary=is_daily_summary,
             update_info=self.update_info if CONFIG["SHOW_VERSION_UPDATE"] else None,
+            word_groups=word_groups,
         )
 
         return stats, html_file
