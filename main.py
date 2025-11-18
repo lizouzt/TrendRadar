@@ -1678,6 +1678,7 @@ def render_html_content(
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
         <title>热点新闻分析</title>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
         <style>
@@ -2305,11 +2306,25 @@ def render_html_content(
                 <div class="topic-trend-section">
                     <div class="topic-trend-title">✨ 关注话题趋势</div>
         """
+        all_trends_data = []
         for trend_result in topic_trend_data["trends"]:
             topic = html_escape(trend_result.get("topic", "N/A"))
             stats = trend_result.get("statistics", {})
             total_mentions = stats.get("total_mentions", 0)
             change_rate = stats.get("change_rate", 0)
+
+            if total_mentions == 0:
+                continue
+            
+            trend_data = trend_result.get("trend_data", [])
+            if trend_data:
+                chart_id = f"trend-chart-{topic.replace(' ', '-')}"
+                dates = [d['date'] for d in trend_data]
+                counts = [d['count'] for d in trend_data]
+                all_trends_data.append({
+                    "chartId": chart_id,
+                    "data": {"dates": dates, "counts": counts}
+                })
             
             change_html = ""
             if change_rate > 10: # 增长超过10%
@@ -2329,18 +2344,62 @@ def render_html_content(
                         </div>
             """
             
-            # 渲染趋势图 (简单实现，显示7日趋势数据)
-            trend_data = trend_result.get("trend_data", [])
             if trend_data:
-                # 格式化为 "MM-DD: Count"
-                trend_line = " -> ".join([f"{datetime.strptime(d['date'], '%Y-%m-%d').strftime('%m-%d')}: {d['count']}" for d in trend_data])
                 html += f"""
                         <div class="news-item">
-                            <div class="news-content" style="padding-right: 0;">7日趋势: {html_escape(trend_line)}</div>
+                            <div id="{chart_id}" style="width: 100%; height: 180px;"></div>
                         </div>
                 """
             html += "</div>" # End of word-group
         html += "</div>" # End of topic-trend-section
+
+        # 添加用于渲染ECharts的JavaScript脚本
+        if all_trends_data:
+            trends_json = json.dumps(all_trends_data, ensure_ascii=False)
+            html += f"""
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {{
+                    const trendsData = {trends_json};
+                    
+                    trendsData.forEach(trend => {{
+                        const chartDom = document.getElementById(trend.chartId);
+                        if (chartDom) {{
+                            const myChart = echarts.init(chartDom);
+                            const option = {{
+                                tooltip: {{
+                                    trigger: 'axis'
+                                }},
+                                grid: {{
+                                    left: '3%',
+                                    right: '4%',
+                                    bottom: '3%',
+                                    containLabel: true
+                                }},
+                                xAxis: {{
+                                    type: 'category',
+                                    boundaryGap: false,
+                                    data: trend.data.dates.map(date => new Date(date).toLocaleDateString('zh-CN', {{month: '2-digit', day: '2-digit'}}))
+                                }},
+                                yAxis: {{
+                                    type: 'value'
+                                }},
+                                series: [
+                                    {{
+                                        name: '提及数',
+                                        type: 'line',
+                                        stack: 'Total',
+                                        data: trend.data.counts,
+                                        smooth: true,
+                                        areaStyle: {{}}
+                                    }}
+                                ]
+                            }};
+                            myChart.setOption(option);
+                        }}
+                    }});
+                }});
+            </script>
+            """
 
     # 处理新增新闻区域
     if report_data["new_titles"]:
@@ -2421,7 +2480,6 @@ def render_html_content(
                 </div>
             </div>
         </div>
-        
         <script>
             async function saveAsImage() {
                 const button = event.target;
