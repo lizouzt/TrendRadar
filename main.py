@@ -12,11 +12,12 @@ from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from email.utils import formataddr, formatdate, make_msgid
 from datetime import datetime, timedelta
+import io
+import base64
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Union
 from mcp_server.tools.data_query import DataQueryTools
 from mcp_server.tools.analytics import AnalyticsTools
-
 import pytz
 import requests
 import yaml
@@ -1678,7 +1679,6 @@ def render_html_content(
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
         <title>热点新闻分析</title>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
         <style>
@@ -2306,7 +2306,6 @@ def render_html_content(
                 <div class="topic-trend-section">
                     <div class="topic-trend-title">✨ 关注话题趋势</div>
         """
-        all_trends_data = []
         for trend_result in topic_trend_data["trends"]:
             topic = html_escape(trend_result.get("topic", "N/A"))
             stats = trend_result.get("statistics", {})
@@ -2318,16 +2317,6 @@ def render_html_content(
             
             trend_data = trend_result.get("trend_data", [])
             if trend_data:
-                chart_id = f"trend-chart-{topic.replace(' ', '-')}"
-                dates = [d['date'] for d in trend_data]
-                counts = [d['count'] for d in trend_data]
-                all_trends_data.append({
-                    "chartId": chart_id,
-                    "data": {"dates": dates, "counts": counts}
-                })
-            
-            change_html = ""
-            if change_rate > 10: # 增长超过10%
                 change_html = f'<span style="color: #dc2626;">(↑{change_rate:.2f}%)</span>'
             elif change_rate < -10: # 下降超过10%
                 change_html = f'<span style="color: #059669;">(↓{abs(change_rate):.2f}%)</span>'
@@ -2347,59 +2336,49 @@ def render_html_content(
             if trend_data:
                 html += f"""
                         <div class="news-item">
-                            <div id="{chart_id}" style="width: 100%; height: 180px;"></div>
+                            <div class="news-content" style="padding-right: 0;">
+                """
+                try:
+                    # 使用 matplotlib 生成图表
+                    import matplotlib
+                    matplotlib.use('Agg')  # 使用非交互式后端
+                    import matplotlib.pyplot as plt
+
+                    dates = [datetime.strptime(d['date'], '%Y-%m-%d').strftime('%m-%d') for d in trend_data]
+                    counts = [d['count'] for d in trend_data]
+
+                    fig, ax = plt.subplots(figsize=(6, 2), dpi=100)
+                    ax.plot(dates, counts, marker='o', linestyle='-', color='#3aafed')
+                    ax.fill_between(dates, counts, color='#3aafed', alpha=0.2)
+
+                    # 样式优化
+                    ax.grid(True, linestyle='--', alpha=0.6)
+                    ax.spines['top'].set_visible(False)
+                    ax.spines['right'].set_visible(False)
+                    ax.tick_params(axis='x', rotation=30)
+                    fig.tight_layout()
+
+                    # 将图表保存到内存中
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format='png', transparent=True)
+                    buf.seek(0)
+                    
+                    # 转换为 Base64
+                    base64_image = base64.b64encode(buf.read()).decode('utf-8')
+                    plt.close(fig) # 关闭图表，释放内存
+
+                    html += f'<img src="data:image/png;base64,{base64_image}" alt="{topic} 趋势图" style="width: 100%; height: auto;" />'
+
+                except Exception as e:
+                    print(f"为话题 '{topic}' 使用matplotlib生成图表失败: {e}")
+                    html += "<p>图表生成失败</p>"
+
+                html += """
+                            </div>
                         </div>
                 """
             html += "</div>" # End of word-group
         html += "</div>" # End of topic-trend-section
-
-        # 添加用于渲染ECharts的JavaScript脚本
-        if all_trends_data:
-            trends_json = json.dumps(all_trends_data, ensure_ascii=False)
-            html += f"""
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {{
-                    const trendsData = {trends_json};
-                    
-                    trendsData.forEach(trend => {{
-                        const chartDom = document.getElementById(trend.chartId);
-                        if (chartDom) {{
-                            const myChart = echarts.init(chartDom);
-                            const option = {{
-                                tooltip: {{
-                                    trigger: 'axis'
-                                }},
-                                grid: {{
-                                    left: '3%',
-                                    right: '4%',
-                                    bottom: '3%',
-                                    containLabel: true
-                                }},
-                                xAxis: {{
-                                    type: 'category',
-                                    boundaryGap: false,
-                                    data: trend.data.dates.map(date => new Date(date).toLocaleDateString('zh-CN', {{month: '2-digit', day: '2-digit'}}))
-                                }},
-                                yAxis: {{
-                                    type: 'value'
-                                }},
-                                series: [
-                                    {{
-                                        name: '提及数',
-                                        type: 'line',
-                                        stack: 'Total',
-                                        data: trend.data.counts,
-                                        smooth: true,
-                                        areaStyle: {{}}
-                                    }}
-                                ]
-                            }};
-                            myChart.setOption(option);
-                        }}
-                    }});
-                }});
-            </script>
-            """
 
     # 处理新增新闻区域
     if report_data["new_titles"]:
