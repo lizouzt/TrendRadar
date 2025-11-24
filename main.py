@@ -2374,6 +2374,7 @@ def render_html_content(
 
     # 渲染话题趋势模块
     if topic_trend_data and topic_trend_data.get("trends"):
+        print(f"趋势数据：{json.dumps(topic_trend_data, indent=2)}")
         html += """
                 <div class="topic-trend-section">
                     <div class="topic-trend-title">✨ 关注话题趋势</div>
