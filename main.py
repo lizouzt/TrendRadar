@@ -1634,7 +1634,7 @@ def generate_html_report(
                     trends = []
                     for topic in topics_to_analyze:
                         # 调用正确的函数 analyze_topic_trend_unified
-                        result = analytics_tool.analyze_topic_trend_unified(topic=topic, analysis_type="trend")
+                        result = analytics_tool.analyze_topic_trend_unified(topic=topic, analysis_type="viral")
                         if result.get("success"):
                             trends.append(result)
                     
