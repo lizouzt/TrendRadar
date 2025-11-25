@@ -3722,8 +3722,7 @@ def send_to_notifications(
         results["email"] = send_to_email(
             email_from,
             email_password,
-            # email_to,
-            "tao.z.u@icloud.com",
+            email_to,
             report_type,
             html_file_path,
             email_smtp_server,
