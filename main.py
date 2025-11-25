@@ -356,7 +356,6 @@ def html_escape(text: str) -> str:
         .replace("'", "&#x27;")
     )
 
-
 # === 推送记录管理 ===
 class PushRecordManager:
     """推送记录管理器"""
@@ -1683,6 +1682,8 @@ def generate_html_report(
 ) -> str:
     """生成HTML报告"""
     topic_trend_data = None
+    viral_topics_arr = None
+
     if is_daily_summary:
         if mode == "current":
             filename = "当前榜单汇总.html"
@@ -1693,17 +1694,26 @@ def generate_html_report(
     else:
         filename = f"{format_time_filename()}.html"
         # 如果不是生成每日汇总，则调用函数获取话题趋势
+        analytics_tool = AnalyticsTools()
+        
+        try:
+            print(f"正在异常热度检测数据:")
+            viral_topics = analytics_tool.analyze_topic_trend_unified(topic="_unused", analysis_type="viral")
+            viral_topics_arr = [viral_topics]
+            print("异常热度检测数据获取成功。")
+        except Exception as e:
+            print(f"获取异常热度检测数据失败: {e}")
+
         if word_groups:
             # 提取关注词用于趋势分析
             topics_to_analyze = [group["group_key"] for group in word_groups if group["group_key"] != "全部新闻"]
             if topics_to_analyze:
                 try:
                     print(f"正在为关注词获取话题趋势分析数据: {topics_to_analyze}")
-                    analytics_tool = AnalyticsTools()
                     trends = []
                     for topic in topics_to_analyze:
                         # 调用正确的函数 analyze_topic_trend_unified
-                        result = analytics_tool.analyze_topic_trend_unified(topic=topic, analysis_type="viral")
+                        result = analytics_tool.analyze_topic_trend_unified(topic=topic, analysis_type="trend")
                         if result.get("success"):
                             trends.append(result)
                     
@@ -1723,6 +1733,7 @@ def generate_html_report(
         mode=mode,
         update_info=update_info,
         topic_trend_data=topic_trend_data,
+        viral_topics_arr=viral_topics_arr,
     )
 
     with open(file_path, "w", encoding="utf-8") as f:
@@ -1742,7 +1753,8 @@ def render_html_content(
     is_daily_summary: bool = False,
     mode: str = "daily", 
     update_info: Optional[Dict] = None,
-    topic_trend_data: Optional[Dict] = None,
+    topic_trend_data = None,
+    viral_topics_arr = None,
 ) -> str:
     """渲染HTML内容"""
     html = """
@@ -2022,6 +2034,24 @@ def render_html_content(
                 font-weight: 600;
                 margin: 0 0 20px 0;
             }
+
+            .viral-topic-item {
+                padding: 16px 0;
+                border-bottom: 1px solid #f5f5f5;
+            }
+            .viral-topic-item:last-child {
+                border-bottom: none;
+            }
+            .viral-topic-header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 12px;
+            }
+            .viral-topic-keyword {
+                font-size: 16px;
+                font-weight: 600;
+            }
             
             .topic-item {
                 display: flex;
@@ -2033,6 +2063,28 @@ def render_html_content(
             .topic-item:last-child {
                 border-bottom: none;
             }
+
+            .viral-topic-stats {
+                font-size: 12px;
+                color: #666;
+            }
+            .viral-topic-stats .new { color: #dc2626; font-weight: bold; }
+            .viral-topic-stats .up { color: #f59e0b; font-weight: bold; }
+            .viral-topic-stats .level-high { color: #dc2626; font-weight: bold; }
+            .viral-topic-stats .level-mid { color: #f59e0b; font-weight: bold; }
+
+            .viral-sample-titles {
+                list-style: none;
+                padding-left: 16px;
+                margin: 0;
+                font-size: 13px;
+            }
+            .viral-sample-titles li {
+                color: #666;
+                padding: 4px 0;
+                position: relative;
+            }
+            .viral-sample-titles li::before { content: '▪'; position: absolute; left: -14px; color: #ccc; }
             
             .new-section {
                 margin-top: 40px;
@@ -2372,87 +2424,6 @@ def render_html_content(
             html += """
                 </div>"""
 
-    # 渲染话题趋势模块
-    if topic_trend_data and topic_trend_data.get("trends"):
-        print(f"趋势数据：{json.dumps(topic_trend_data, indent=2)}")
-        html += """
-                <div class="topic-trend-section">
-                    <div class="topic-trend-title">✨ 关注话题趋势</div>
-        """
-        for trend_result in topic_trend_data["trends"]:
-            topic = html_escape(trend_result.get("topic", "N/A"))
-            stats = trend_result.get("statistics", {})
-            total_mentions = stats.get("total_mentions", 0)
-            change_rate = stats.get("change_rate", 0)
-
-            if total_mentions == 0:
-                continue
-            
-            trend_data = trend_result.get("trend_data", [])
-            if trend_data:
-                change_html = f'<span style="color: #dc2626;">(↑{change_rate:.2f}%)</span>'
-            elif change_rate < -10: # 下降超过10%
-                change_html = f'<span style="color: #059669;">(↓{abs(change_rate):.2f}%)</span>'
-            else:
-                change_html = '<span style="color: #6b7280;">(稳定)</span>'
-
-            html += f"""
-                    <div class="word-group">
-                        <div class="word-header">
-                            <div class="word-info">
-                                <div class="word-name">{topic}</div>
-                                <div class="word-count">{total_mentions} 条提及 {change_html}</div>
-                            </div>
-                        </div>
-            """
-            
-            if trend_data:
-                html += f"""
-                        <div class="news-item">
-                            <div class="news-content" style="padding-right: 0;">
-                """
-                try:
-                    # 使用 matplotlib 生成图表
-                    import matplotlib
-                    matplotlib.use('Agg')  # 使用非交互式后端
-                    import matplotlib.pyplot as plt
-
-                    dates = [datetime.strptime(d['date'], '%Y-%m-%d').strftime('%m-%d') for d in trend_data]
-                    counts = [d['count'] for d in trend_data]
-
-                    fig, ax = plt.subplots(figsize=(6, 2), dpi=100)
-                    ax.plot(dates, counts, marker='o', linestyle='-', color='#3aafed')
-                    ax.fill_between(dates, counts, color='#3aafed', alpha=0.2)
-
-                    # 样式优化
-                    ax.grid(True, linestyle='--', alpha=0.6)
-                    ax.spines['top'].set_visible(False)
-                    ax.spines['right'].set_visible(False)
-                    ax.tick_params(axis='x', rotation=30)
-                    fig.tight_layout()
-
-                    # 将图表保存到内存中
-                    buf = io.BytesIO()
-                    fig.savefig(buf, format='png', transparent=True)
-                    buf.seek(0)
-                    
-                    # 转换为 Base64
-                    base64_image = base64.b64encode(buf.read()).decode('utf-8')
-                    plt.close(fig) # 关闭图表，释放内存
-
-                    html += f'<img src="data:image/png;base64,{base64_image}" alt="{topic} 趋势图" style="width: 100%; height: auto;" />'
-
-                except Exception as e:
-                    print(f"为话题 '{topic}' 使用matplotlib生成图表失败: {e}")
-                    html += "<p>图表生成失败</p>"
-
-                html += """
-                            </div>
-                        </div>
-                """
-            html += "</div>" # End of word-group
-        html += "</div>" # End of topic-trend-section
-
     # 处理新增新闻区域
     if report_data["new_titles"]:
         html += f"""
@@ -2514,6 +2485,153 @@ def render_html_content(
 
         html += """
                 </div>"""
+
+    # 渲染异常热度检测
+    if viral_topics_arr:
+        print(f"viral_topics_arr: {json.dumps(viral_topics_arr, indent=2)}")
+        html += """
+                <div class="topic-trend-section">
+                    <div class="topic-trend-title">🔥 异常热度话题</div>
+        """
+        # viral_topics_arr 现在是一个列表，直接遍历它
+        # 通常列表里只有一个元素，但遍历可以兼容多个元素的情况
+        all_viral_topics = []
+        for item in viral_topics_arr:
+            if item.get("success") and item.get("viral_topics"):
+                all_viral_topics.extend(item["viral_topics"])
+
+        if not all_viral_topics:
+            html += "<p style='color: #666; font-size: 14px;'>今日暂未检测到异常热度话题。</p>"
+        else:
+            # 按 current_count 降序排序
+            sorted_topics = sorted(all_viral_topics, key=lambda x: x.get("current_count", 0), reverse=True)
+            
+            for topic_data in sorted_topics:
+                # 跳过没有关键词或热度的数据
+                if not topic_data.get("keyword") or not topic_data.get("current_count"):
+                    continue
+
+                keyword = html_escape(topic_data.get("keyword", "N/A"))
+                current_count = topic_data.get("current_count", 0)
+                growth_rate = topic_data.get("growth_rate", 0)
+                alert_level = topic_data.get("alert_level", "中")
+                sample_titles = topic_data.get("sample_titles", [])
+
+                # 格式化增长率
+                if growth_rate == "新话题":
+                    growth_html = '<span class="new">新话题</span>'
+                else:
+                    try:
+                        rate = float(growth_rate)
+                        growth_html = f'<span class="up">↑{rate:.0f}%</span>'
+                    except (ValueError, TypeError):
+                        growth_html = ''
+
+                # 格式化热度等级
+                if alert_level == "高":
+                    level_html = '<span class="level-high">高热度</span>'
+                else:
+                    level_html = '<span class="level-mid">中热度</span>'
+
+                html += f"""
+                    <div class="viral-topic-item">
+                        <div class="viral-topic-header">
+                            <div class="viral-topic-keyword">{keyword}</div>
+                            <div class="viral-topic-stats">
+                                {current_count}条提及 · {growth_html} · {level_html}
+                            </div>
+                        </div>
+                """
+
+                if sample_titles:
+                    html += '<ul class="viral-sample-titles">'
+                    for title in sample_titles:
+                        html += f'<li>{html_escape(title)}</li>'
+                    html += '</ul>'
+
+                html += "</div>" # End of viral-topic-item
+
+        html += "</div>" # End of viral-topics-section
+
+    # 渲染话题趋势模块
+    if topic_trend_data and topic_trend_data.get("trends"):
+        html += """
+                <div class="topic-trend-section">
+                    <div class="topic-trend-title">✨ 关注话题趋势</div>
+        """
+        for trend_result in topic_trend_data["trends"]:
+            topic = html_escape(trend_result.get("topic", "N/A"))
+            stats = trend_result.get("statistics", {})
+            total_mentions = stats.get("total_mentions", 0)
+            change_rate = stats.get("change_rate", 0)
+
+            if total_mentions == 0:
+                continue
+            
+            trend_data = trend_result.get("trend_data", [])
+            if change_rate < -10: # 下降超过10%
+                change_html = f'<span style="color: #059669;">(↓{abs(change_rate):.2f}%)</span>'
+            elif trend_data:
+                change_html = f'<span style="color: #dc2626;">(↑{change_rate:.2f}%)</span>'
+            else:
+                change_html = '<span style="color: #6b7280;">(稳定)</span>'
+
+            html += f"""
+                    <div class="word-group">
+                        <div class="word-header">
+                            <div class="word-info">
+                                <div class="word-name">{topic}</div>
+                                <div class="word-count">{total_mentions} 条提及 {change_html}</div>
+                            </div>
+                        </div>
+            """
+            
+            if trend_data:
+                html += f"""
+                        <div class="news-item">
+                            <div class="news-content" style="padding-right: 0;">
+                """
+                try:
+                    # 使用 matplotlib 生成图表
+                    import matplotlib
+                    matplotlib.use('Agg')  # 使用非交互式后端
+                    import matplotlib.pyplot as plt
+
+                    dates = [datetime.strptime(d['date'], '%Y-%m-%d').strftime('%m-%d') for d in trend_data]
+                    counts = [d['count'] for d in trend_data]
+
+                    fig, ax = plt.subplots(figsize=(6, 2), dpi=100)
+                    ax.plot(dates, counts, marker='o', linestyle='-', color='#3aafed')
+                    ax.fill_between(dates, counts, color='#3aafed', alpha=0.2)
+
+                    # 样式优化
+                    ax.grid(True, linestyle='--', alpha=0.6)
+                    ax.spines['top'].set_visible(False)
+                    ax.spines['right'].set_visible(False)
+                    ax.tick_params(axis='x', rotation=30)
+                    fig.tight_layout()
+
+                    # 将图表保存到内存中
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format='png', transparent=True)
+                    buf.seek(0)
+                    
+                    # 转换为 Base64
+                    base64_image = base64.b64encode(buf.read()).decode('utf-8')
+                    plt.close(fig) # 关闭图表，释放内存
+
+                    html += f'<img src="data:image/png;base64,{base64_image}" alt="{topic} 趋势图" style="width: 100%; height: auto;" />'
+
+                except Exception as e:
+                    print(f"为话题 '{topic}' 使用matplotlib生成图表失败: {e}")
+                    html += "<p>图表生成失败</p>"
+
+                html += """
+                            </div>
+                        </div>
+                """
+            html += "</div>" # End of word-group
+        html += "</div>" # End of topic-trend-section
 
     html += """
             </div>
@@ -3604,7 +3722,8 @@ def send_to_notifications(
         results["email"] = send_to_email(
             email_from,
             email_password,
-            email_to,
+            # email_to,
+            "tao.z.u@icloud.com",
             report_type,
             html_file_path,
             email_smtp_server,
