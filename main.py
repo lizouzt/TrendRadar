@@ -2639,13 +2639,6 @@ def render_html_content(
             <div class="footer">
                 <div class="footer-content">"""
 
-    if update_info:
-        html += f"""
-                    <br>
-                    <span style="color: #ea580c; font-weight: 500;">
-                        发现新版本 {update_info['remote_version']}，当前版本 {update_info['current_version']}
-                    </span>"""
-
     html += """
                 </div>
             </div>
