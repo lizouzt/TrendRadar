@@ -1,0 +1,965 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>热点新闻分析</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <style>
+            * { box-sizing: border-box; }
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+                margin: 0; 
+                padding: 16px; 
+                background: #fafafa;
+                color: #333;
+                line-height: 1.5;
+            }
+            
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+            }
+            
+            .header {
+                background: linear-gradient(135deg, #7a72ff 0%, #3aafed 100%);
+                color: #fff;
+                padding: 32px 24px;
+                text-align: center;
+                position: relative;
+            }
+            
+            .save-buttons {
+                position: absolute;
+                top: 16px;
+                right: 16px;
+                display: flex;
+                gap: 8px;
+            }
+            
+            .save-btn {
+                background: rgba(255, 255, 255, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 500;
+                transition: all 0.2s ease;
+                backdrop-filter: blur(10px);
+                white-space: nowrap;
+            }
+            
+            .save-btn:hover {
+                background: rgba(255, 255, 255, 0.3);
+                border-color: rgba(255, 255, 255, 0.5);
+                transform: translateY(-1px);
+            }
+            
+            .save-btn:active {
+                transform: translateY(0);
+            }
+            
+            .save-btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+            
+            .header-title {
+                font-size: 22px;
+                font-weight: 700;
+                margin: 0 0 20px 0;
+            }
+            
+            .header-info {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+                font-size: 14px;
+                opacity: 0.95;
+            }
+            
+            .info-item {
+                text-align: center;
+            }
+            
+            .info-label {
+                display: block;
+                font-size: 12px;
+                opacity: 0.8;
+                margin-bottom: 4px;
+            }
+            
+            .info-value {
+                font-weight: 600;
+                font-size: 16px;
+            }
+            
+            .content {
+                padding: 24px;
+            }
+            
+            .word-group {
+                margin-bottom: 40px;
+            }
+            
+            .word-group:first-child {
+                margin-top: 0;
+            }
+            
+            .word-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 20px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            
+            .word-info {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            
+            .word-name {
+                font-size: 17px;
+                font-weight: 600;
+                color: #1a1a1a;
+            }
+            
+            .word-count {
+                color: #666;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            
+            .word-count.hot { color: #dc2626; font-weight: 600; }
+            .word-count.warm { color: #ea580c; font-weight: 600; }
+            
+            .word-index {
+                color: #999;
+                font-size: 12px;
+            }
+            
+            .news-item {
+                margin-bottom: 20px;
+                padding: 16px 0;
+                border-bottom: 1px solid #f5f5f5;
+                position: relative;
+                display: flex;
+                gap: 12px;
+                align-items: center;
+            }
+            
+            .news-item:last-child {
+                border-bottom: none;
+            }
+            
+            .news-item.new::after {
+                content: "NEW";
+                position: absolute;
+                top: 12px;
+                right: 0;
+                background: #fbbf24;
+                color: #92400e;
+                font-size: 9px;
+                font-weight: 700;
+                padding: 3px 6px;
+                border-radius: 4px;
+                letter-spacing: 0.5px;
+            }
+            
+            .news-number {
+                color: #999;
+                font-size: 13px;
+                font-weight: 600;
+                min-width: 20px;
+                text-align: center;
+                flex-shrink: 0;
+                background: #f8f9fa;
+                border-radius: 50%;
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                align-self: flex-start;
+                margin-top: 8px;
+            }
+            
+            .news-content {
+                flex: 1;
+                min-width: 0;
+                padding-right: 40px;
+            }
+            
+            .news-item.new .news-content {
+                padding-right: 50px;
+            }
+            
+            .news-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 8px;
+                flex-wrap: wrap;
+            }
+            
+            .source-name {
+                color: #666;
+                font-size: 12px;
+                font-weight: 500;
+            }
+            
+            .rank-num {
+                color: #fff;
+                background: #6b7280;
+                font-size: 10px;
+                font-weight: 700;
+                padding: 2px 6px;
+                border-radius: 10px;
+                min-width: 18px;
+                text-align: center;
+            }
+            
+            .rank-num.top { background: #dc2626; }
+            .rank-num.high { background: #ea580c; }
+            
+            .time-info {
+                color: #999;
+                font-size: 11px;
+            }
+            
+            .count-info {
+                color: #059669;
+                font-size: 11px;
+                font-weight: 500;
+            }
+            
+            .news-title {
+                font-size: 15px;
+                line-height: 1.4;
+                color: #1a1a1a;
+                margin: 0;
+            }
+            
+            .news-link {
+                color: #2563eb;
+                text-decoration: none;
+            }
+            
+            .news-link:hover {
+                text-decoration: underline;
+            }
+            
+            .news-link:visited {
+                color: #7c3aed;
+            }
+
+            .topic-trend-section {
+                margin-top: 40px;
+                padding-top: 24px;
+                border-top: 2px solid #f0f0f0;
+            }
+            
+            .topic-trend-title {
+                color: #1a1a1a;
+                font-size: 16px;
+                font-weight: 600;
+                margin: 0 0 20px 0;
+            }
+
+            .viral-topic-item {
+                padding: 16px 0;
+                border-bottom: 1px solid #f5f5f5;
+            }
+            .viral-topic-item:last-child {
+                border-bottom: none;
+            }
+            .viral-topic-header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 12px;
+            }
+            .viral-topic-keyword {
+                font-size: 16px;
+                font-weight: 600;
+            }
+            
+            .topic-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 8px 0;
+                border-bottom: 1px solid #f9f9f9;
+            }
+            .topic-item:last-child {
+                border-bottom: none;
+            }
+
+            .viral-topic-stats {
+                font-size: 12px;
+                color: #666;
+            }
+            .viral-topic-stats .new { color: #dc2626; font-weight: bold; }
+            .viral-topic-stats .up { color: #f59e0b; font-weight: bold; }
+            .viral-topic-stats .level-high { color: #dc2626; font-weight: bold; }
+            .viral-topic-stats .level-mid { color: #f59e0b; font-weight: bold; }
+
+            .viral-sample-titles {
+                list-style: none;
+                padding-left: 16px;
+                margin: 0;
+                font-size: 13px;
+            }
+            .viral-sample-titles li {
+                color: #666;
+                padding: 4px 0;
+                position: relative;
+            }
+            .viral-sample-titles li::before { content: '▪'; position: absolute; left: -14px; color: #ccc; }
+            
+            .new-section {
+                margin-top: 40px;
+                padding-top: 24px;
+                border-top: 2px solid #f0f0f0;
+            }
+            
+            .new-section-title {
+                color: #1a1a1a;
+                font-size: 16px;
+                font-weight: 600;
+                margin: 0 0 20px 0;
+            }
+            
+            .new-source-group {
+                margin-bottom: 24px;
+            }
+            
+            .new-source-title {
+                color: #666;
+                font-size: 13px;
+                font-weight: 500;
+                margin: 0 0 12px 0;
+                padding-bottom: 6px;
+                border-bottom: 1px solid #f5f5f5;
+            }
+            
+            .new-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 8px 0;
+                border-bottom: 1px solid #f9f9f9;
+            }
+            
+            .new-item:last-child {
+                border-bottom: none;
+            }
+            
+            .new-item-number {
+                color: #999;
+                font-size: 12px;
+                font-weight: 600;
+                min-width: 18px;
+                text-align: center;
+                flex-shrink: 0;
+                background: #f8f9fa;
+                border-radius: 50%;
+                width: 20px;
+                height: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .new-item-rank {
+                color: #fff;
+                background: #6b7280;
+                font-size: 10px;
+                font-weight: 700;
+                padding: 3px 6px;
+                border-radius: 8px;
+                min-width: 20px;
+                text-align: center;
+                flex-shrink: 0;
+            }
+            
+            .new-item-rank.top { background: #dc2626; }
+            .new-item-rank.high { background: #ea580c; }
+            
+            .new-item-content {
+                flex: 1;
+                min-width: 0;
+            }
+            
+            .new-item-title {
+                font-size: 14px;
+                line-height: 1.4;
+                color: #1a1a1a;
+                margin: 0;
+            }
+            
+            .error-section {
+                background: #fef2f2;
+                border: 1px solid #fecaca;
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 24px;
+            }
+            
+            .error-title {
+                color: #dc2626;
+                font-size: 14px;
+                font-weight: 600;
+                margin: 0 0 8px 0;
+            }
+            
+            .error-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+            
+            .error-item {
+                color: #991b1b;
+                font-size: 13px;
+                padding: 2px 0;
+                font-family: 'SF Mono', Consolas, monospace;
+            }
+            
+            .footer {
+                margin-top: 32px;
+                padding: 20px 24px;
+                background: #f8f9fa;
+                border-top: 1px solid #e5e7eb;
+                text-align: center;
+            }
+            
+            .footer-content {
+                font-size: 13px;
+                color: #6b7280;
+                line-height: 1.6;
+            }
+            
+            .footer-link {
+                color: #4f46e5;
+                text-decoration: none;
+                font-weight: 500;
+                transition: color 0.2s ease;
+            }
+            
+            .footer-link:hover {
+                color: #7c3aed;
+                text-decoration: underline;
+            }
+            
+            .project-name {
+                font-weight: 600;
+                color: #374151;
+            }
+            
+            @media (max-width: 480px) {
+                body { padding: 12px; }
+                .header { padding: 24px 20px; }
+                .content { padding: 20px; }
+                .footer { padding: 16px 20px; }
+                .header-info { grid-template-columns: 1fr; gap: 12px; }
+                .news-header { gap: 6px; }
+                .news-content { padding-right: 45px; }
+                .news-item { gap: 8px; }
+                .new-item { gap: 8px; }
+                .news-number { width: 20px; height: 20px; font-size: 12px; }
+                .save-buttons {
+                    position: static;
+                    margin-bottom: 16px;
+                    display: flex;
+                    gap: 8px;
+                    justify-content: center;
+                    flex-direction: column;
+                    width: 100%;
+                }
+                .save-btn {
+                    width: 100%;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="save-buttons">
+                    <button class="save-btn" onclick="saveAsImage()">保存为图片</button>
+                    <button class="save-btn" onclick="saveAsMultipleImages()">分段保存</button>
+                </div>
+                <div class="header-title">热点新闻分析</div>
+                <div class="header-info">
+                    <div class="info-item">
+                        <span class="info-label">报告类型</span>
+                        <span class="info-value">实时分析</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">新闻总数</span>
+                        <span class="info-value">167 条</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">热点新闻</span>
+                        <span class="info-value">7 条</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">生成时间</span>
+                        <span class="info-value">02-18 20:54</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content">
+                <div class="word-group">
+                    <div class="word-header">
+                        <div class="word-info">
+                            <div class="word-name">谐波器 机器人</div>
+                            <div class="word-count ">4 条</div>
+                        </div>
+                        <div class="word-index">1/2</div>
+                    </div>
+                    <div class="news-item new">
+                        <div class="news-number">1</div>
+                        <div class="news-content">
+                            <div class="news-header">
+                                <span class="source-name">贴吧</span><span class="rank-num high">4</span><span class="time-info">20时54分</span>
+                            </div>
+                            <div class="news-title"><a href="https://tieba.baidu.com/hottopic/browse/hottopic?topic_id=28350767&amp;amp;topic_name=%E6%9C%BA%E5%99%A8%E4%BA%BA%E5%8F%98%E5%8D%B0%E5%BA%A6%E9%80%A0%2C%E4%B8%89%E5%93%A5%E7%9C%9F%E6%95%A2%E5%90%B9" target="_blank" class="news-link">机器人变印度造,三哥真敢吹</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-item new">
+                        <div class="news-number">2</div>
+                        <div class="news-content">
+                            <div class="news-header">
+                                <span class="source-name">bilibili 热搜</span><span class="rank-num ">16</span><span class="time-info">20时54分</span>
+                            </div>
+                            <div class="news-title"><a href="https://search.bilibili.com/all?keyword=%E6%98%A5%E6%99%9A%E6%9C%BA%E5%99%A8%E4%BA%BA%E5%A6%82%E4%BD%95%E5%AE%8C%E6%88%90%E9%AB%98%E9%9A%BE%E5%BA%A6%E5%8A%A8%E4%BD%9C" target="_blank" class="news-link">春晚机器人如何完成高难度动作</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-item new">
+                        <div class="news-number">3</div>
+                        <div class="news-content">
+                            <div class="news-header">
+                                <span class="source-name">今日头条</span><span class="rank-num ">20</span><span class="time-info">20时54分</span>
+                            </div>
+                            <div class="news-title"><a href="https://www.toutiao.com/trending/7607989687826779686/" target="_blank" class="news-link">春晚机器人“大乱斗”背后</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-item new">
+                        <div class="news-number">4</div>
+                        <div class="news-content">
+                            <div class="news-header">
+                                <span class="source-name">今日头条</span><span class="rank-num ">29</span><span class="time-info">20时54分</span>
+                            </div>
+                            <div class="news-title"><a href="https://www.toutiao.com/trending/7608144389969284671/" target="_blank" class="news-link">春晚引爆人形机器人产业热潮</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="word-group">
+                    <div class="word-header">
+                        <div class="word-info">
+                            <div class="word-name">ai 人工智能</div>
+                            <div class="word-count ">3 条</div>
+                        </div>
+                        <div class="word-index">2/2</div>
+                    </div>
+                    <div class="news-item new">
+                        <div class="news-number">1</div>
+                        <div class="news-content">
+                            <div class="news-header">
+                                <span class="source-name">贴吧</span><span class="rank-num ">7</span><span class="time-info">20时54分</span>
+                            </div>
+                            <div class="news-title"><a href="https://tieba.baidu.com/hottopic/browse/hottopic?topic_id=28350765&amp;amp;topic_name=AI%E5%A4%A7%E6%88%98%3A%E9%B9%85%E5%8E%82%E9%98%BF%E9%87%8C%E5%8F%8C%E5%8F%8C%E5%87%BA%E5%B1%80" target="_blank" class="news-link">AI大战:鹅厂阿里双双出局</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-item new">
+                        <div class="news-number">2</div>
+                        <div class="news-content">
+                            <div class="news-header">
+                                <span class="source-name">华尔街见闻</span><span class="rank-num ">8</span><span class="time-info">20时54分</span>
+                            </div>
+                            <div class="news-title"><a href="https://wallstreetcn.com/articles/3765829" target="_blank" class="news-link">摩根大通交易台：“先卖再问”的美股AI抛售潮即将结束，抄底软件股的时候到了</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-item new">
+                        <div class="news-number">3</div>
+                        <div class="news-content">
+                            <div class="news-header">
+                                <span class="source-name">华尔街见闻</span><span class="rank-num ">10</span><span class="time-info">20时54分</span>
+                            </div>
+                            <div class="news-title"><a href="https://wallstreetcn.com/articles/3765833" target="_blank" class="news-link">公开和沃什“唱反调”？多位美联储高官称：AI提升生产力或意味着“更高的中性利率”</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="topic-trend-section">
+                    <div class="topic-trend-title">🔥 异常热度话题</div>
+        
+                    <div class="viral-topic-item">
+                        <div class="viral-topic-header">
+                            <div class="viral-topic-keyword">飞驰人生3</div>
+                            <div class="viral-topic-stats">
+                                6条提及 · <span class="up">↑3%</span> · <span class="level-mid">中热度</span>
+                            </div>
+                        </div>
+                <ul class="viral-sample-titles"><li>《飞驰人生3》：这一冠献给纯粹</li><li>《飞驰人生3》票房领先春节档</li><li>《飞驰人生3》成大年初一票房冠军</li></ul></div>
+                    <div class="viral-topic-item">
+                        <div class="viral-topic-header">
+                            <div class="viral-topic-keyword">日本高市早苗内阁集体辞职</div>
+                            <div class="viral-topic-stats">
+                                5条提及 · <span class="new">新话题</span> · <span class="level-high">高热度</span>
+                            </div>
+                        </div>
+                <ul class="viral-sample-titles"><li>日本高市早苗内阁集体辞职</li><li>日本高市早苗内阁集体辞职</li><li>日本高市早苗内阁集体辞职</li></ul></div></div>
+                <div class="topic-trend-section">
+                    <div class="topic-trend-title">✨ 关注话题趋势</div>
+        
+                    <div class="word-group">
+                        <div class="word-header">
+                            <div class="word-info">
+                                <div class="word-name">新质生产力</div>
+                                <div class="word-count">2 条提及 <span style="color: #059669;">(↓100.00%)</span></div>
+                            </div>
+                        </div>
+            
+                        <div class="news-item">
+                            <div class="news-content" style="padding-right: 0;">
+                <img src="data:image/png;base64,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" alt="新质生产力 趋势图" style="width: 100%; height: auto;" />
+                            </div>
+                        </div>
+                </div></div>
+            </div>
+            
+            <div class="footer">
+                <div class="footer-content">
+                </div>
+            </div>
+        </div>
+        <script>
+            async function saveAsImage() {
+                const button = event.target;
+                const originalText = button.textContent;
+                
+                try {
+                    button.textContent = '生成中...';
+                    button.disabled = true;
+                    window.scrollTo(0, 0);
+                    
+                    // 等待页面稳定
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    // 截图前隐藏按钮
+                    const buttons = document.querySelector('.save-buttons');
+                    buttons.style.visibility = 'hidden';
+                    
+                    // 再次等待确保按钮完全隐藏
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    const container = document.querySelector('.container');
+                    
+                    const canvas = await html2canvas(container, {
+                        backgroundColor: '#ffffff',
+                        scale: 1.5,
+                        useCORS: true,
+                        allowTaint: false,
+                        imageTimeout: 10000,
+                        removeContainer: false,
+                        foreignObjectRendering: false,
+                        logging: false,
+                        width: container.offsetWidth,
+                        height: container.offsetHeight,
+                        x: 0,
+                        y: 0,
+                        scrollX: 0,
+                        scrollY: 0,
+                        windowWidth: window.innerWidth,
+                        windowHeight: window.innerHeight
+                    });
+                    
+                    buttons.style.visibility = 'visible';
+                    
+                    const link = document.createElement('a');
+                    const now = new Date();
+                    const filename = `TrendRadar_热点新闻分析_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}.png`;
+                    
+                    link.download = filename;
+                    link.href = canvas.toDataURL('image/png', 1.0);
+                    
+                    // 触发下载
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    button.textContent = '保存成功!';
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 2000);
+                    
+                } catch (error) {
+                    const buttons = document.querySelector('.save-buttons');
+                    buttons.style.visibility = 'visible';
+                    button.textContent = '保存失败';
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 2000);
+                }
+            }
+            
+            async function saveAsMultipleImages() {
+                const button = event.target;
+                const originalText = button.textContent;
+                const container = document.querySelector('.container');
+                const scale = 1.5; 
+                const maxHeight = 5000 / scale;
+                
+                try {
+                    button.textContent = '分析中...';
+                    button.disabled = true;
+                    
+                    // 获取所有可能的分割元素
+                    const newsItems = Array.from(container.querySelectorAll('.news-item'));
+                    const wordGroups = Array.from(container.querySelectorAll('.word-group'));
+                    const newSection = container.querySelector('.new-section');
+                    const errorSection = container.querySelector('.error-section');
+                    const header = container.querySelector('.header');
+                    const footer = container.querySelector('.footer');
+                    
+                    // 计算元素位置和高度
+                    const containerRect = container.getBoundingClientRect();
+                    const elements = [];
+                    
+                    // 添加header作为必须包含的元素
+                    elements.push({
+                        type: 'header',
+                        element: header,
+                        top: 0,
+                        bottom: header.offsetHeight,
+                        height: header.offsetHeight
+                    });
+                    
+                    // 添加错误信息（如果存在）
+                    if (errorSection) {
+                        const rect = errorSection.getBoundingClientRect();
+                        elements.push({
+                            type: 'error',
+                            element: errorSection,
+                            top: rect.top - containerRect.top,
+                            bottom: rect.bottom - containerRect.top,
+                            height: rect.height
+                        });
+                    }
+                    
+                    // 按word-group分组处理news-item
+                    wordGroups.forEach(group => {
+                        const groupRect = group.getBoundingClientRect();
+                        const groupNewsItems = group.querySelectorAll('.news-item');
+                        
+                        // 添加word-group的header部分
+                        const wordHeader = group.querySelector('.word-header');
+                        if (wordHeader) {
+                            const headerRect = wordHeader.getBoundingClientRect();
+                            elements.push({
+                                type: 'word-header',
+                                element: wordHeader,
+                                parent: group,
+                                top: groupRect.top - containerRect.top,
+                                bottom: headerRect.bottom - containerRect.top,
+                                height: headerRect.height
+                            });
+                        }
+                        
+                        // 添加每个news-item
+                        groupNewsItems.forEach(item => {
+                            const rect = item.getBoundingClientRect();
+                            elements.push({
+                                type: 'news-item',
+                                element: item,
+                                parent: group,
+                                top: rect.top - containerRect.top,
+                                bottom: rect.bottom - containerRect.top,
+                                height: rect.height
+                            });
+                        });
+                    });
+                    
+                    // 添加新增新闻部分
+                    if (newSection) {
+                        const rect = newSection.getBoundingClientRect();
+                        elements.push({
+                            type: 'new-section',
+                            element: newSection,
+                            top: rect.top - containerRect.top,
+                            bottom: rect.bottom - containerRect.top,
+                            height: rect.height
+                        });
+                    }
+                    
+                    // 添加footer
+                    const footerRect = footer.getBoundingClientRect();
+                    elements.push({
+                        type: 'footer',
+                        element: footer,
+                        top: footerRect.top - containerRect.top,
+                        bottom: footerRect.bottom - containerRect.top,
+                        height: footer.offsetHeight
+                    });
+                    
+                    // 计算分割点
+                    const segments = [];
+                    let currentSegment = { start: 0, end: 0, height: 0, includeHeader: true };
+                    let headerHeight = header.offsetHeight;
+                    currentSegment.height = headerHeight;
+                    
+                    for (let i = 1; i < elements.length; i++) {
+                        const element = elements[i];
+                        const potentialHeight = element.bottom - currentSegment.start;
+                        
+                        // 检查是否需要创建新分段
+                        if (potentialHeight > maxHeight && currentSegment.height > headerHeight) {
+                            // 在前一个元素结束处分割
+                            currentSegment.end = elements[i - 1].bottom;
+                            segments.push(currentSegment);
+                            
+                            // 开始新分段
+                            currentSegment = {
+                                start: currentSegment.end,
+                                end: 0,
+                                height: element.bottom - currentSegment.end,
+                                includeHeader: false
+                            };
+                        } else {
+                            currentSegment.height = potentialHeight;
+                            currentSegment.end = element.bottom;
+                        }
+                    }
+                    
+                    // 添加最后一个分段
+                    if (currentSegment.height > 0) {
+                        currentSegment.end = container.offsetHeight;
+                        segments.push(currentSegment);
+                    }
+                    
+                    button.textContent = `生成中 (0/${segments.length})...`;
+                    
+                    // 隐藏保存按钮
+                    const buttons = document.querySelector('.save-buttons');
+                    buttons.style.visibility = 'hidden';
+                    
+                    // 为每个分段生成图片
+                    const images = [];
+                    for (let i = 0; i < segments.length; i++) {
+                        const segment = segments[i];
+                        button.textContent = `生成中 (${i + 1}/${segments.length})...`;
+                        
+                        // 创建临时容器用于截图
+                        const tempContainer = document.createElement('div');
+                        tempContainer.style.cssText = `
+                            position: absolute;
+                            left: -9999px;
+                            top: 0;
+                            width: ${container.offsetWidth}px;
+                            background: white;
+                        `;
+                        tempContainer.className = 'container';
+                        
+                        // 克隆容器内容
+                        const clonedContainer = container.cloneNode(true);
+                        
+                        // 移除克隆内容中的保存按钮
+                        const clonedButtons = clonedContainer.querySelector('.save-buttons');
+                        if (clonedButtons) {
+                            clonedButtons.style.display = 'none';
+                        }
+                        
+                        tempContainer.appendChild(clonedContainer);
+                        document.body.appendChild(tempContainer);
+                        
+                        // 等待DOM更新
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        
+                        // 使用html2canvas截取特定区域
+                        const canvas = await html2canvas(clonedContainer, {
+                            backgroundColor: '#ffffff',
+                            scale: scale,
+                            useCORS: true,
+                            allowTaint: false,
+                            imageTimeout: 10000,
+                            logging: false,
+                            width: container.offsetWidth,
+                            height: segment.end - segment.start,
+                            x: 0,
+                            y: segment.start,
+                            windowWidth: window.innerWidth,
+                            windowHeight: window.innerHeight
+                        });
+                        
+                        images.push(canvas.toDataURL('image/png', 1.0));
+                        
+                        // 清理临时容器
+                        document.body.removeChild(tempContainer);
+                    }
+                    
+                    // 恢复按钮显示
+                    buttons.style.visibility = 'visible';
+                    
+                    // 下载所有图片
+                    const now = new Date();
+                    const baseFilename = `TrendRadar_热点新闻分析_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+                    
+                    for (let i = 0; i < images.length; i++) {
+                        const link = document.createElement('a');
+                        link.download = `${baseFilename}_part${i + 1}.png`;
+                        link.href = images[i];
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // 延迟一下避免浏览器阻止多个下载
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                    
+                    button.textContent = `已保存 ${segments.length} 张图片!`;
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 2000);
+                    
+                } catch (error) {
+                    console.error('分段保存失败:', error);
+                    const buttons = document.querySelector('.save-buttons');
+                    buttons.style.visibility = 'visible';
+                    button.textContent = '保存失败';
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 2000);
+                }
+            }
+            
+            document.addEventListener('DOMContentLoaded', function() {
+                window.scrollTo(0, 0);
+            });
+        </script>
+    </body>
+    </html>
+    
