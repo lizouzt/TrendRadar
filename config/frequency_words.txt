@@ -1,4 +1,3 @@
-特斯拉
 马斯克
 
 英伟达
@@ -12,6 +11,7 @@ google
 
 gemini
 deepmind
+deepseek
 claude
 openai
 
@@ -19,6 +19,9 @@ ai
 !gai
 !air
 人工智能
+
+网络安全
+AI安全
 
 芯片
 光刻机
@@ -30,26 +33,16 @@ ai
 核能
 核聚变
 
-深海
+openclaw
+hermes-agent
+
+深海经济
 低空经济
 
 股票
 A股
 上证
 深证
-
-火电
-水电站
-雅鲁藏布江
-
-氢能
-制氢
-氢电池
-
-电力
-协议电价
-
-新质生产力
 
 航天
 飞船
