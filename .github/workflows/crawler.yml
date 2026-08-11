@@ -45,6 +45,7 @@ jobs:
           fi
 
           echo "✅ 配置文件检查通过"
+          exit 1
 
       - name: Run crawler
         env:
